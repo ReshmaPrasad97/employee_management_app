@@ -1,9 +1,12 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:untitled/providers/employee_providers.dart';
 
 import '../models/employee.dart';
+import '../services/secure_storage_service.dart';
 import 'employee_form_screen.dart';
+import 'login_screen.dart';
 
 class EmployeeListScreen extends ConsumerWidget {
   const EmployeeListScreen({super.key});
@@ -48,6 +51,22 @@ class EmployeeListScreen extends ConsumerWidget {
     );
     return confirmed ?? false;
   }
+  Future<void> _logout(BuildContext context) async {
+    final storage = SecureStorageService();
+
+    await storage.deleteToken();
+
+    await FirebaseAuth.instance.signOut();
+
+    if (!context.mounted) return;
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const LoginScreen(),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -56,6 +75,14 @@ class EmployeeListScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Employees'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () {
+              _logout(context);
+            },
+          ),
+        ],
       ),
      body: employeeAsync.when(
        loading: () => const Center (
