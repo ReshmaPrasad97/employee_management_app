@@ -3,36 +3,72 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:untitled/models/employee.dart';
 import 'package:untitled/services/employee_service.dart';
+import 'package:untitled/services/employee_local_service.dart';
 
 final employeeServiceProvider = Provider<EmployeeService>((ref) {
   return EmployeeService();
 });
 
-final employeesProvider = AsyncNotifierProvider<EmployeesNotifier,List<Employee>>(
+final employeeLocalServiceProvider = Provider<EmployeeLocalService>((ref) {
+  return EmployeeLocalService();
+});
+
+final employeesProvider =
+AsyncNotifierProvider<EmployeesNotifier, List<Employee>>(
   EmployeesNotifier.new,
 );
 
 class EmployeesNotifier extends AsyncNotifier<List<Employee>> {
   @override
-  FutureOr<List<Employee>> build() async {
-    final service = ref.read(employeeServiceProvider);
+  Future<List<Employee>> build() async {
+    final apiService = ref.read(employeeServiceProvider);
+    final localService = ref.read(employeeLocalServiceProvider);
 
-    return service.getEmployee();
+    try {
+      final employees = await apiService.getEmployee();
+
+      // Cache API data locally
+      await localService.saveEmployees(employees);
+      await localService.printEmployees();
+
+      return employees;
+    } catch (e) {
+      // Fallback to Hive
+      final cachedEmployees = await localService.getEmployees();
+
+      if (cachedEmployees.isNotEmpty) {
+        return cachedEmployees;
+      }
+
+      rethrow;
+    }
   }
 
-  Future<void> createEmployee(Employee employee) async{
-    final service = ref.read(employeeServiceProvider);
-    final createdEmployee =  await service.createEmployee(employee);
+  Future<void> createEmployee(Employee employee) async {
+    final apiService = ref.read(employeeServiceProvider);
+    final localService = ref.read(employeeLocalServiceProvider);
 
-    final currentEmployees = state.value??[];
+    final createdEmployee =
+    await apiService.createEmployee(employee);
 
-    state = AsyncData([...currentEmployees,createdEmployee]);
+    await localService.saveEmployee(createdEmployee);
+
+    final currentEmployees = state.value ?? [];
+
+    state = AsyncData([
+      ...currentEmployees,
+      createdEmployee,
+    ]);
   }
 
   Future<void> updateEmployee(Employee employee) async {
-    final service = ref.read(employeeServiceProvider);
+    final apiService = ref.read(employeeServiceProvider);
+    final localService = ref.read(employeeLocalServiceProvider);
 
-    final updatedEmployee = await service.updateEmployee(employee);
+    final updatedEmployee =
+    await apiService.updateEmployee(employee);
+
+    await localService.saveEmployee(updatedEmployee);
 
     final currentEmployees = state.value ?? [];
 
@@ -47,17 +83,20 @@ class EmployeesNotifier extends AsyncNotifier<List<Employee>> {
     state = AsyncData(updatedEmployees);
   }
 
-  Future<void> deleteEmployee(Employee employee) async{
-    final service  = ref.read(employeeServiceProvider);
+  Future<void> deleteEmployee(Employee employee) async {
+    final apiService = ref.read(employeeServiceProvider);
+    final localService = ref.read(employeeLocalServiceProvider);
 
-    await service.deleteEmployee(employee.id!);
+    await apiService.deleteEmployee(employee.id!);
 
-    final currentEmployees = state.value?? [];
+    await localService.deleteEmployee(employee.id!);
 
-    final updateEmployees = currentEmployees.where((e) => e.id !=employee.id).toList();
+    final currentEmployees = state.value ?? [];
 
-    // update Riverpod state
-    state = AsyncData(updateEmployees);
+    final updatedEmployees = currentEmployees
+        .where((e) => e.id != employee.id)
+        .toList();
+
+    state = AsyncData(updatedEmployees);
   }
-
 }

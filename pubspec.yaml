@@ -24,6 +24,8 @@ dependencies:
   firebase_auth: ^6.6.1
   flutter_secure_storage: ^11.1.0
   firebase_messaging: ^16.6.0
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
 
 
 dev_dependencies:
@@ -34,6 +36,8 @@ dev_dependencies:
 
 
   flutter_lints: ^6.0.0
+  hive_generator: ^2.0.1
+  build_runner: ^2.4.13
 
 
 flutter:
